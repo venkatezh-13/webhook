@@ -476,7 +476,10 @@
                     <input type="text" id="keywords" value="tax, RBI, MOCK, compliance, urgent, listing, mutual fund, Suspension, usdinr, ram, ipo" placeholder="e.g. tax, RBI, MOCK, compliance">
                 </div>
                 <div class="form-group">
-                    <label for="webhook_url">🌐 Webhook Destination URL</label>
+                    <div class="label-row">
+                        <label for="webhook_url">🌐 Webhook Destination URL</label>
+                        <button type="button" class="preset-chip" onclick="loadDemoWebhook()">🧪 Demo Svix Webhook</button>
+                    </div>
                     <input type="url" id="webhook_url" value="" placeholder="Enter Webhook Destination URL (e.g. Svix, Whatomate, or http://localhost:5000/webhook)...">
                 </div>
             </div>
@@ -597,6 +600,10 @@
         return escaped.replace(/\\*\\*\\[(.*?)\\]\\*\\*/g, '<strong>[$1]</strong>');
     }
 
+    function loadDemoWebhook() {
+        document.getElementById('webhook_url').value = "https://play.svix.com/in/VmpnNbeWET4IFP117hUauwidJuw/";
+    }
+
     async function runIngestion() {
         const rssUrlInput = document.getElementById('rss_url');
         const webhookUrlInput = document.getElementById('webhook_url');
@@ -609,12 +616,6 @@
         if (rssUrls.length === 0) {
             alert('⚠️ Please enter at least one RSS Feed URL before running ingestion.');
             rssUrlInput.focus();
-            return;
-        }
-
-        if (!webhookUrl) {
-            alert('⚠️ Please enter a Webhook Destination URL.');
-            webhookUrlInput.focus();
             return;
         }
 
@@ -779,40 +780,45 @@
                     pub_date: pubDate
                 };
 
-                // Concurrent POST payload to Webhook URL
-                const dispatchPromise = (async () => {
-                    try {
-                        await fetch(webhookUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                    } catch(err) {
+                // Concurrent POST payload to Webhook URL if provided
+                if (webhookUrl) {
+                    const dispatchPromise = (async () => {
                         try {
                             await fetch(webhookUrl, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'text/plain' },
-                                body: JSON.stringify(payload),
-                                mode: 'no-cors'
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
                             });
-                        } catch(e) {}
-                    }
-                })();
+                        } catch(err) {
+                            try {
+                                await fetch(webhookUrl, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'text/plain' },
+                                    body: JSON.stringify(payload),
+                                    mode: 'no-cors'
+                                });
+                            } catch(e) {}
+                        }
+                    })();
 
-                dispatchPromises.push(dispatchPromise);
+                    dispatchPromises.push(dispatchPromise);
+                }
 
                 ALERTS_LIST.unshift({
                     ...payload,
-                    destination: webhookUrl,
+                    destination: webhookUrl || '(Dashboard Only)',
                     received_at_formatted: nowTime
                 });
             }
         }
 
-        await Promise.all(dispatchPromises);
+        if (dispatchPromises.length > 0) {
+            await Promise.all(dispatchPromises);
+        }
 
         renderFeed();
-        alert(`✅ Ingestion Complete!\nFeeds Evaluated: ${rssUrls.length}\nCirculars Evaluated: ${uniqueItems.length}\nTriggered & Dispatched: ${matchedCount} keyword alerts.`);
+        const statusMsg = webhookUrl ? `Dispatched to Webhook: ${webhookUrl}` : `(No Webhook Destination URL specified - alerts displayed on Dashboard below)`;
+        alert(`✅ Ingestion Complete!\nFeeds Evaluated: ${rssUrls.length}\nCirculars Evaluated: ${uniqueItems.length}\nTriggered Alerts: ${matchedCount}\n\n${statusMsg}`);
     }
 
     async function pollIngestionStatus() {
