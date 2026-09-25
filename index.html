@@ -152,7 +152,7 @@
             letter-spacing: 0.04em;
         }
 
-        input[type="text"], input[type="url"] {
+        input[type="text"], input[type="url"], textarea {
             width: 100%;
             background: var(--input-bg);
             border: 1px solid var(--card-border);
@@ -162,9 +162,10 @@
             font-family: inherit;
             font-size: 0.95rem;
             transition: all 0.2s ease;
+            resize: vertical;
         }
 
-        input[type="text"]:focus, input[type="url"]:focus {
+        input[type="text"]:focus, input[type="url"]:focus, textarea:focus {
             outline: none;
             border-color: var(--primary);
             box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
@@ -427,8 +428,8 @@
         <div class="panel-header">⚙️ Configuration & Execution Panel</div>
         <div class="form-grid">
             <div class="form-group">
-                <label for="rss_url">📡 RSS Feed URL</label>
-                <input type="url" id="rss_url" value="" placeholder="Enter RSS XML Feed URL (e.g. https://www.bseindia.com/data/xml/notices.xml)...">
+                <label for="rss_url">📡 RSS Feed URLs (Comma or Newline-separated)</label>
+                <textarea id="rss_url" rows="2" placeholder="Enter one or more RSS XML Feed URLs (e.g. https://www.bseindia.com/data/xml/notices.xml, https://nsearchives.nseindia.com/content/RSS/Circulars.xml)..."></textarea>
             </div>
             
             <div class="form-grid-2">
@@ -550,12 +551,14 @@
     async function runIngestion() {
         const rssUrlInput = document.getElementById('rss_url');
         const webhookUrlInput = document.getElementById('webhook_url');
-        const rssUrl = rssUrlInput.value.trim();
+        const rssUrlsRaw = rssUrlInput.value.trim();
         const webhookUrl = webhookUrlInput.value.trim();
         const keywordsStr = document.getElementById('keywords').value.trim();
 
-        if (!rssUrl) {
-            alert('⚠️ Please enter an RSS Feed URL before running ingestion.');
+        const rssUrls = rssUrlsRaw.split(/[\n,]+/).map(u => u.trim()).filter(u => u.length > 0);
+
+        if (rssUrls.length === 0) {
+            alert('⚠️ Please enter at least one RSS Feed URL before running ingestion.');
             rssUrlInput.focus();
             return;
         }
@@ -576,7 +579,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    rss_url: rssUrl,
+                    rss_url: rssUrls.join(', '),
                     keywords: keywordsStr.split(',').map(k => k.trim()).filter(k => k),
                     webhook_url: webhookUrl
                 })
@@ -587,9 +590,9 @@
             }
         } catch(e) {}
 
-        // Fallback: Client-side browser RSS fetch & webhook dispatch for GitHub Pages static hosting!
+        // Fallback: Client-side browser RSS fetch & webhook dispatch for static hosting
         try {
-            await runBrowserIngestion(rssUrl, keywordsStr, webhookUrl);
+            await runBrowserIngestion(rssUrls, keywordsStr, webhookUrl);
         } catch(e) {
             alert('❌ Ingestion Error: ' + e.message);
         } finally {
@@ -647,7 +650,7 @@
             } catch(e) {}
         }
 
-        throw new Error('Unable to fetch RSS feed over CORS. Check the URL or run the Python poller locally.');
+        throw new Error('Unable to fetch RSS feed over CORS: ' + url);
     }
 
     function parseXMLItems(xmlText) {
@@ -667,14 +670,36 @@
         return result;
     }
 
-    async function runBrowserIngestion(rssUrl, keywordsStr, webhookUrl) {
+    async function runBrowserIngestion(rssUrls, keywordsStr, webhookUrl) {
         const keywords = keywordsStr.split(',').map(k => k.trim().toLowerCase()).filter(k => k);
-        const items = await fetchFeedItems(rssUrl);
+        let allItems = [];
+
+        for (const url of rssUrls) {
+            try {
+                const items = await fetchFeedItems(url);
+                allItems.push(...items);
+            } catch(e) {
+                console.warn('Failed to fetch RSS feed:', url, e);
+            }
+        }
+
+        if (allItems.length === 0) {
+            throw new Error('Unable to fetch any of the provided RSS feeds over CORS.');
+        }
+
+        // Deduplicate items across feeds by link or title
+        const seen = new Set();
+        const uniqueItems = allItems.filter(item => {
+            const key = item.link || item.title;
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
 
         let matchedCount = 0;
         const nowTime = new Date().toLocaleTimeString();
 
-        for (const item of items) {
+        for (const item of uniqueItems) {
             const title = item.title;
             const link = item.link;
             const description = item.description;
@@ -728,7 +753,7 @@
         }
 
         renderFeed();
-        alert(`✅ Ingestion Complete!\nEvaluated: ${items.length} circulars.\nTriggered & Dispatched: ${matchedCount} keyword alerts.`);
+        alert(`✅ Ingestion Complete!\nFeeds Evaluated: ${rssUrls.length}\nCirculars Evaluated: ${uniqueItems.length}\nTriggered & Dispatched: ${matchedCount} keyword alerts.`);
     }
 
     async function pollIngestionStatus() {

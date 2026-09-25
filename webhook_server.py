@@ -819,7 +819,12 @@ class LocalWebhookReceiver(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
-            self.wfile.write(HTML_DASHBOARD.encode('utf-8'))
+            try:
+                with open(os.path.join(os.path.dirname(__file__), "index.html"), "r", encoding="utf-8") as f:
+                    html_content = f.read()
+                self.wfile.write(html_content.encode('utf-8'))
+            except Exception:
+                self.wfile.write(HTML_DASHBOARD.encode('utf-8'))
 
 
 def run_server():
