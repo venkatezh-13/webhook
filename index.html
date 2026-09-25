@@ -573,22 +573,24 @@
         runBtn.innerHTML = '<div class="loader"></div> Processing Ingestion...';
         runBtn.disabled = true;
 
-        // Try local server API first if running locally
-        try {
-            const res = await fetch('/api/run-poll', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    rss_url: rssUrls.join(', '),
-                    keywords: keywordsStr.split(',').map(k => k.trim()).filter(k => k),
-                    webhook_url: webhookUrl
-                })
-            });
-            if (res.ok) {
-                pollIngestionStatus();
-                return;
-            }
-        } catch(e) {}
+        // Try local server API first ONLY if running locally
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            try {
+                const res = await fetch('/api/run-poll', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        rss_url: rssUrls.join(', '),
+                        keywords: keywordsStr.split(',').map(k => k.trim()).filter(k => k),
+                        webhook_url: webhookUrl
+                    })
+                });
+                if (res.ok) {
+                    pollIngestionStatus();
+                    return;
+                }
+            } catch(e) {}
+        }
 
         // Fallback: Client-side browser RSS fetch & webhook dispatch for static hosting
         try {
@@ -623,7 +625,6 @@
         } catch(e) {}
 
         // Strategy 2: Direct XML Fetch
-        const cleanUrl = url.replace("://", "___TEMP___").replace("//", "/").replace("___TEMP___", "://");
         try {
             const res = await fetch(cleanUrl);
             if (res.ok) {
@@ -700,6 +701,7 @@
 
         let matchedCount = 0;
         const nowTime = new Date().toLocaleTimeString();
+        const dispatchPromises = [];
 
         for (const item of uniqueItems) {
             const title = item.title;
@@ -728,23 +730,27 @@
                     pub_date: pubDate
                 };
 
-                // POST payload to Webhook URL
-                try {
-                    await fetch(webhookUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                } catch(err) {
+                // Concurrent POST payload to Webhook URL
+                const dispatchPromise = (async () => {
                     try {
                         await fetch(webhookUrl, {
                             method: 'POST',
-                            headers: { 'Content-Type': 'text/plain' },
-                            body: JSON.stringify(payload),
-                            mode: 'no-cors'
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
                         });
-                    } catch(e) {}
-                }
+                    } catch(err) {
+                        try {
+                            await fetch(webhookUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'text/plain' },
+                                body: JSON.stringify(payload),
+                                mode: 'no-cors'
+                            });
+                        } catch(e) {}
+                    }
+                })();
+
+                dispatchPromises.push(dispatchPromise);
 
                 ALERTS_LIST.unshift({
                     ...payload,
@@ -753,6 +759,8 @@
                 });
             }
         }
+
+        await Promise.all(dispatchPromises);
 
         renderFeed();
         alert(`✅ Ingestion Complete!\nFeeds Evaluated: ${rssUrls.length}\nCirculars Evaluated: ${uniqueItems.length}\nTriggered & Dispatched: ${matchedCount} keyword alerts.`);
@@ -802,13 +810,15 @@
             received_at_formatted: new Date().toLocaleTimeString()
         };
 
-        try {
-            await fetch('/api/trigger-test', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ webhook_url: webhookUrl })
-            });
-        } catch(e) {
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            try {
+                await fetch('/api/trigger-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ webhook_url: webhookUrl })
+                });
+            } catch(e) {}
+        }
             try {
                 await fetch(webhookUrl, {
                     method: 'POST',
