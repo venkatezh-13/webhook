@@ -428,13 +428,13 @@
         <div class="form-grid">
             <div class="form-group">
                 <label for="rss_url">📡 RSS Feed URL</label>
-                <input type="url" id="rss_url" value="" placeholder="Enter RSS XML Feed URL (e.g. https://nsearchives.nseindia.com/content/RSS/Circulars.xml)...">
+                <input type="url" id="rss_url" value="" placeholder="Enter RSS XML Feed URL (e.g. https://www.bseindia.com/data/xml/notices.xml)...">
             </div>
             
             <div class="form-grid-2">
                 <div class="form-group">
                     <label for="keywords">🎯 Keywords (Comma-separated)</label>
-                    <input type="text" id="keywords" value="tax, RBI, MOCK, compliance, urgent, listing, mutual fund, Suspension, usdinr, ram" placeholder="e.g. tax, RBI, MOCK, compliance">
+                    <input type="text" id="keywords" value="tax, RBI, MOCK, compliance, urgent, listing, mutual fund, Suspension, usdinr, ram, ipo" placeholder="e.g. tax, RBI, MOCK, compliance">
                 </div>
                 <div class="form-group">
                     <label for="webhook_url">🌐 Webhook Destination URL</label>
@@ -598,38 +598,94 @@
         }
     }
 
-    async function runBrowserIngestion(rssUrl, keywordsStr, webhookUrl) {
-        const keywords = keywordsStr.split(',').map(k => k.trim().toLowerCase()).filter(k => k);
-        const cleanUrl = rssUrl.replace("://", "___TEMP___").replace("//", "/").replace("___TEMP___", "://");
-
-        // Use CORS proxy if direct fetch is blocked by browser CORS policy
-        let response;
+    async function fetchFeedItems(url) {
+        // Strategy 1: RSS2JSON API (Handles BSE & NSE, bypasses CORS, parses XML)
         try {
-            response = await fetch(cleanUrl);
-        } catch(e) {
-            const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(cleanUrl);
-            response = await fetch(proxyUrl);
+            const rurl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+            const res = await fetch(rurl);
+            if (res.ok) {
+                const data = await res.json();
+                if (data && data.status === 'ok' && Array.isArray(data.items)) {
+                    return data.items.map(item => ({
+                        title: (item.title || '').trim(),
+                        link: (item.link || item.guid || '').trim(),
+                        description: (item.description || item.content || '').trim(),
+                        category: (item.categories && item.categories.length > 0) ? item.categories.join(', ') : '',
+                        pubDate: (item.pubDate || '').trim()
+                    }));
+                }
+            }
+        } catch(e) {}
+
+        // Strategy 2: Direct XML Fetch
+        const cleanUrl = url.replace("://", "___TEMP___").replace("//", "/").replace("___TEMP___", "://");
+        try {
+            const res = await fetch(cleanUrl);
+            if (res.ok) {
+                const text = await res.text();
+                if (text && text.includes('<rss')) return parseXMLItems(text);
+            }
+        } catch(e) {}
+
+        // Strategy 3: XML CORS Proxy Fallbacks
+        const proxies = [
+            u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+            u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+            u => 'https://corsproxy.io/?' + encodeURIComponent(u)
+        ];
+
+        for (const makeProxyUrl of proxies) {
+            try {
+                const proxyUrl = makeProxyUrl(cleanUrl);
+                const res = await fetch(proxyUrl);
+                if (res.ok) {
+                    const text = await res.text();
+                    if (text && (text.includes('<rss') || text.includes('<xml') || text.includes('<channel'))) {
+                        return parseXMLItems(text);
+                    }
+                }
+            } catch(e) {}
         }
 
-        const xmlText = await response.text();
+        throw new Error('Unable to fetch RSS feed over CORS. Check the URL or run the Python poller locally.');
+    }
+
+    function parseXMLItems(xmlText) {
         const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+        const xmlDoc = parser.parseFromString(xmlText.trim(), "text/xml");
         const items = xmlDoc.querySelectorAll("item");
+        const result = [];
+        items.forEach(item => {
+            result.push({
+                title: (item.querySelector("title")?.textContent || "").trim(),
+                link: (item.querySelector("link")?.textContent || "").trim(),
+                description: (item.querySelector("description")?.textContent || "").trim(),
+                category: (item.querySelector("category")?.textContent || "").trim(),
+                pubDate: (item.querySelector("pubDate")?.textContent || "").trim()
+            });
+        });
+        return result;
+    }
+
+    async function runBrowserIngestion(rssUrl, keywordsStr, webhookUrl) {
+        const keywords = keywordsStr.split(',').map(k => k.trim().toLowerCase()).filter(k => k);
+        const items = await fetchFeedItems(rssUrl);
 
         let matchedCount = 0;
         const nowTime = new Date().toLocaleTimeString();
 
         for (const item of items) {
-            const title = (item.querySelector("title")?.textContent || "").trim();
-            const link = (item.querySelector("link")?.textContent || "").trim();
-            const description = (item.querySelector("description")?.textContent || "").trim();
-            const category = (item.querySelector("category")?.textContent || "").trim();
-            const pubDate = (item.querySelector("pubDate")?.textContent || "").trim();
+            const title = item.title;
+            const link = item.link;
+            const description = item.description;
+            const category = item.category;
+            const pubDate = item.pubDate;
 
             const combinedText = (title + " " + category + " " + description).toLowerCase();
 
             const matchedKws = keywords.filter(kw => {
-                const regex = new RegExp('\\\\b' + kw.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\b', 'i');
+                const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp('\\b' + escaped + '\\b', 'i');
                 return regex.test(combinedText);
             });
 
