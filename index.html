@@ -602,9 +602,11 @@
     }
 
     async function fetchFeedItems(url) {
+        const cleanUrl = url.replace("://", "___TEMP___").replace("//", "/").replace("___TEMP___", "://");
+
         // Strategy 1: RSS2JSON API (Handles BSE & NSE, bypasses CORS, parses XML)
         try {
-            const rurl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(url);
+            const rurl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(cleanUrl);
             const res = await fetch(rurl);
             if (res.ok) {
                 const data = await res.json();
