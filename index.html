@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Circular Webhook Alert Control Center</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -144,12 +145,42 @@
             gap: 6px;
         }
 
+        .label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
         label {
             font-size: 0.85rem;
             font-weight: 500;
             color: #d1d5db;
             text-transform: uppercase;
             letter-spacing: 0.04em;
+        }
+
+        .preset-chips {
+            display: flex;
+            gap: 6px;
+        }
+
+        .preset-chip {
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .preset-chip:hover {
+            background: rgba(99, 102, 241, 0.3);
+            color: #ffffff;
         }
 
         input[type="text"], input[type="url"], textarea {
@@ -428,8 +459,15 @@
         <div class="panel-header">⚙️ Configuration & Execution Panel</div>
         <div class="form-grid">
             <div class="form-group">
-                <label for="rss_url">📡 RSS Feed URLs (Comma or Newline-separated)</label>
-                <textarea id="rss_url" rows="2" placeholder="Enter one or more RSS XML Feed URLs (e.g. https://www.bseindia.com/data/xml/notices.xml, https://nsearchives.nseindia.com/content/RSS/Circulars.xml)..."></textarea>
+                <div class="label-row">
+                    <label for="rss_url">📡 RSS Feed URLs (Comma or Newline-separated)</label>
+                    <div class="preset-chips">
+                        <button type="button" class="preset-chip" onclick="setPreset('both')">✨ Load Both (NSE + BSE)</button>
+                        <button type="button" class="preset-chip" onclick="setPreset('nse')">📡 NSE</button>
+                        <button type="button" class="preset-chip" onclick="setPreset('bse')">📡 BSE</button>
+                    </div>
+                </div>
+                <textarea id="rss_url" rows="2" placeholder="Enter one or more RSS XML Feed URLs (e.g. https://www.bseindia.com/data/xml/notices.xml, https://nsearchives.nseindia.com/content/RSS/Circulars.xml)...">https://nsearchives.nseindia.com/content/RSS/Circulars.xml, https://www.bseindia.com/data/xml/notices.xml</textarea>
             </div>
             
             <div class="form-grid-2">
@@ -541,6 +579,17 @@
 
     function escapeHtml(text) {
         return (text || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function setPreset(type) {
+        const rssInput = document.getElementById('rss_url');
+        if (type === 'both') {
+            rssInput.value = "https://nsearchives.nseindia.com/content/RSS/Circulars.xml,\nhttps://www.bseindia.com/data/xml/notices.xml";
+        } else if (type === 'nse') {
+            rssInput.value = "https://nsearchives.nseindia.com/content/RSS/Circulars.xml";
+        } else if (type === 'bse') {
+            rssInput.value = "https://www.bseindia.com/data/xml/notices.xml";
+        }
     }
 
     function formatSnippet(text) {
