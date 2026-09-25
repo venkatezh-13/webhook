@@ -706,10 +706,18 @@
                     await fetch(webhookUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload),
-                        mode: 'no-cors'
+                        body: JSON.stringify(payload)
                     });
-                } catch(err) {}
+                } catch(err) {
+                    try {
+                        await fetch(webhookUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: JSON.stringify(payload),
+                            mode: 'no-cors'
+                        });
+                    } catch(e) {}
+                }
 
                 ALERTS_LIST.unshift({
                     ...payload,
@@ -778,10 +786,18 @@
                 await fetch(webhookUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(testPayload),
-                    mode: 'no-cors'
+                    body: JSON.stringify(testPayload)
                 });
-            } catch(err) {}
+            } catch(err) {
+                try {
+                    await fetch(webhookUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(testPayload),
+                        mode: 'no-cors'
+                    });
+                } catch(e2) {}
+            }
         }
 
         ALERTS_LIST.unshift(testPayload);
