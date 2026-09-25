@@ -1,0 +1,29 @@
+# Configuration for Circular Alert Webhook System
+
+keywords:
+  - "tax"
+  - "rbi"
+  - "urgent"
+  - "compliance"
+  - "circular"
+  - "deadline"
+  - "MOCK"
+  - "Suspension"
+  - "usdinr"
+  - "ram"
+
+# Matching Mode:
+# "any"   - Matches if ANY keyword is present
+# "all"   - Matches only if ALL keywords are present
+# "regex" - Evaluates keywords as regular expressions
+match_mode: "any"
+
+# Webhook Destination URL (No default)
+webhook_url: ""
+
+# Pause in seconds between dispatching notifications to avoid rate limits
+rate_limit_delay_seconds: 0.5
+
+deduplication:
+  enabled: true
+  storage_db: "alerts_history.db"
