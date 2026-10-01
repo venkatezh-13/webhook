@@ -873,7 +873,7 @@
                     body: JSON.stringify({ webhook_url: webhookUrl })
                 });
             } catch(e) {}
-        }
+        } else {
             try {
                 await fetch(webhookUrl, {
                     method: 'POST',

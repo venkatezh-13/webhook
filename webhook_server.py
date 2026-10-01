@@ -571,7 +571,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     function formatSnippet(text) {
         const escaped = escapeHtml(text);
-        return escaped.replace(/\\*\\*\\[(.*?)\\]\\*\\*/g, '<strong>[$1]</strong>');
+        return escaped.replace(/\*\*\[(.*?)\]\*\*/g, '<strong>[$1]</strong>');
     }
 
     async function runIngestion() {
@@ -699,11 +699,11 @@ class LocalWebhookReceiver(BaseHTTPRequestHandler):
                 payload["received_at_formatted"] = datetime.now().strftime("%H:%M:%S")
                 payload["destination"] = "Local Receiver (http://localhost:5000/webhook)"
                 
-                PROCESSED_ALERTS.insert(0, payload)
-                if len(PROCESSED_ALERTS) > 100:
-                    PROCESSED_ALERTS.pop()
+                RECEIVED_ALERTS.insert(0, payload)
+                if len(RECEIVED_ALERTS) > 100:
+                    RECEIVED_ALERTS.pop()
 
-                print(f"📥 [Webhook Received] '{payload.get('title')[:50]}' | Keywords: {payload.get('matched_keywords')}")
+                print(f"📥 [Webhook Received] '{(payload.get('title') or '')[:50]}' | Keywords: {payload.get('matched_keywords')}")
 
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -750,12 +750,12 @@ class LocalWebhookReceiver(BaseHTTPRequestHandler):
             }
 
             if "localhost" in webhook_url or "127.0.0.1" in webhook_url:
-                PROCESSED_ALERTS.insert(0, test_payload)
+                RECEIVED_ALERTS.insert(0, test_payload)
             else:
                 try:
                     req = urllib.request.Request(webhook_url, data=json.dumps(test_payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
                     urllib.request.urlopen(req, timeout=5)
-                    PROCESSED_ALERTS.insert(0, test_payload)
+                    RECEIVED_ALERTS.insert(0, test_payload)
                 except Exception as e:
                     print(f"Error dispatching test webhook: {e}")
 

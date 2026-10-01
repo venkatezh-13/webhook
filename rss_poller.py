@@ -93,8 +93,8 @@ class RSSCircularPoller:
             for item in items:
                 title = item.findtext("title", "").strip()
                 link = item.findtext("link", "").strip()
-                guid = item.findtext("guid", "").strip() or link or AlertStorage.generate_hash(title)
                 description = item.findtext("description", "").strip()
+                guid = item.findtext("guid", "").strip() or link or AlertStorage.generate_hash(title, description)
                 category = item.findtext("category", "").strip()
                 pub_date = item.findtext("pubDate", "").strip()
 

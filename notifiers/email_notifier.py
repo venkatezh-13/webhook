@@ -1,5 +1,6 @@
 import smtplib
 import logging
+import html as html_mod
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, List
@@ -37,10 +38,11 @@ class EmailNotifier(BaseNotifier):
             print(f"👉 [Email DRY RUN] Would send email to '{self.email_to or 'Target Email'}': '{alert.get('title')}'")
             return False
 
-        title = alert.get("title", "Untitled Circular Alert")
+        title = html_mod.escape(alert.get("title", "Untitled Circular Alert"))
         url = alert.get("url", "#")
+        snippet = html_mod.escape(snippet)
         keywords_html = " ".join([
-            f'<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-right: 4px;">{kw}</span>'
+            f'<span style="background-color: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-weight: bold; margin-right: 4px;">{html_mod.escape(kw)}</span>'
             for kw in matched_keywords
         ])
 
